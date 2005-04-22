@@ -4,3 +4,7 @@ Revision history for Perl extension Net::FTP::File.
 	- original version; created by h2xs 1.22 with options
 		-AXc -n Net::FTP::File
 
+0.02  Fri Apr 22 22:58:47 2005
+	- moved a couple var declarations to the top so the source looked nicer
+	- added touch() and empty() methods
+	- made move() not allow the same file in both arguments

@@ -4,8 +4,11 @@ use strict;
 use warnings;
 use Net::FTP;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 sub VERSION { $VERSION }
+
+my $pretty = 1;
+our $_fatal = 0; # not my() because you can't localize lexical variables
 
 my %cols = (
    pretty => {
@@ -31,8 +34,6 @@ my %cols = (
       8 => 'path'
    }
 );
-
-my $pretty = 1;
 
 our %DirProcHash = (
    cols => $cols{pretty},
@@ -61,8 +62,6 @@ sub Net::FTP::pretty_dir {
    }   
    return $pretty;
 }
-
-our $_fatal = 0;
 
 my $setmsg = sub {
    my $ftp = shift;
@@ -128,6 +127,10 @@ sub Net::FTP::copy {
 
 sub Net::FTP::move {
    my $ftp = shift;
+   if($_[0] eq $_[1]) {
+       $setmsg->($ftp,"copy $_[0] to $_[1] failed: they are the same file");
+       return;
+   }
    my $cp = $ftp->copy(@_);
    local $_fatal = 0;
    $setmsg->($ftp,"copy $_[0] to $_[1] failed: $_[0] does not exist") if !defined $cp;
@@ -146,6 +149,29 @@ sub Net::FTP::chmod {
       return -1;
    }
    return undef;
+}
+
+sub Net::FTP::touch {
+    my $ftp = shift;
+    my $rfl = shift;
+    if($ftp->isdir($rfl)) {
+        if(shift()) {
+            $ftp->empty($rfl) or return;
+        } else { return -1 }
+    } elsif($ftp->isfile($rfl) && $ftp->size($rfl) > 0) {
+        $ftp->copy($rfl, $rfl) or return; # becasue $ftp->append and $ftp->appe don't change $ftp->mdtm() if you append nothing, if you knwo of a better way please let me know, thx :)
+    } else {
+        $ftp->empty($rfl) or return;
+    }
+    return $ftp->mdtm($rfl);
+}
+
+sub Net::FTP::empty {
+   my $ftp = shift;
+   my $zb = '';
+   open ZBF, '>', \$zb or return;
+   $ftp->put(\*ZBF, shift()) or return;
+   close ZBF;
 }
 
 # not 'stat' since one day Net::FTP may want to support STAT and likely will call it stat()
@@ -231,6 +257,8 @@ $ftp->copy()'s a file (so all of $ftp->copy()'s arguments and paradigms apply to
 
    $ftp->move($orig, $new) or die $ftp->message;
 
+It returns undef and sets $ftp->message if you specify the same thing for each file so that its not deleted when the original is removed.
+
 =head2 $ftp->chmod
 
 Returns undefined if the FTP server does not support the FTP protocol's SITE CHMOD.
@@ -240,6 +268,32 @@ Otherwise it returns 1 if response is ok, 0 if it failed and -1 if it was neithe
 
 The arguments are sent basically as "SITE CHMOD your args here" so you will need to call $ftp->chmod with arguments the FTP server you are connected to understands.
 99% of the time it will be  like the example above.
+
+=head2 $ftp->touch
+
+   $ftp->touch or die $ftp->message;
+
+If the file does not exist it creates a new zero byte file.
+
+If the file does exist it modifies its $ftp->mdtm to now.
+
+If the file is a directory it will return -1 * since $ftp->mdtm doesn't really work with directories. You can have it attempt to create a new file of the same name by specifying a second argument that is true:
+
+   $ftp->touch('public_html'); # returns -1 since its a directory 
+
+If any knows of a way to change the equivalent of $ftp->mdtm of a directory using ftp, let me know please :)
+
+   $ftp->touch('public_html',1); # attempts to create a file called public_html 
+
+One caveat is that some FTP servers will give "public_html: Is a directory" even though its trying to $ftp->put a new file. Anyone who knows a way around that I'd be happy to hear from you :)
+
+Unless there is a problem (IE or die $ftp->message) it will return the current $ftp->mdtm
+
+=head2 $ftp->empty
+
+Create a new empty file or make an existing file 0 size (used by $ftp->touch for non existant or 0 byte files).
+
+   $ftp->empty($file) or die $ftp->message;
 
 =head2 $ftp->dir_hashref
 
