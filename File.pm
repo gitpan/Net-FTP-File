@@ -4,8 +4,7 @@ use strict;
 use warnings;
 use Net::FTP;
 
-our $VERSION = '0.02';
-sub VERSION { $VERSION }
+our $VERSION = '0.03';
 
 my $pretty = 1;
 our $_fatal = 0; # not my() because you can't localize lexical variables
