@@ -1,5 +1,8 @@
 Revision history for Perl extension Net::FTP::File.
 
+0.04  Thu Nov 17 10:47:34 2005
+        - fixed issue with dir_hash and filenames with spaces
+ 
 0.03  Fri Aug 26 18:35:00 2005
         - fixed issue with VERSION() that conflicted with UNIVERSAL's VERSION functionality
 

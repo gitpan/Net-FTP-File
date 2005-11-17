@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Net::FTP;
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 my $pretty = 1;
 our $_fatal = 0; # not my() because you can't localize lexical variables
@@ -41,10 +41,12 @@ our %DirProcHash = (
       my $hash = shift;
       if($line !~ m/^total/) {
          my @lin = split /\s+/, $line;
-         $hash->{ $lin[8] }->{'Link To'} = defined $lin[9] && $lin[9] eq '->' ? $lin[10] : undef;
+         my $path = join ' ', @lin[8 .. $#lin];
+         my ($file, $link) = split / \-\> /, $path;
+         $hash->{ $file }->{'Link To'} = defined $link && $link ? $link : undef;
          for(0..8) {
            my $label = exists $Net::FTP::File::DirProcHash{cols}->{$_} ? $Net::FTP::File::DirProcHash{cols}->{$_} : $_; 
-           $hash->{ $lin[8] }->{$label} = $lin[$_];
+           $hash->{ $file }->{ $label } = $_ == 8 ? $file : $lin[$_];
          }
       }
    },
@@ -300,6 +302,10 @@ It takes the same arguments as $ftp->dir and returns a hashref of info parsed fr
 Each key is the file or path name as returned by $ftp->dir and the value is another hashref of info whose keys are defined in $Net::FTP::File::DirProcHash{cols} (Default is the "Pretty" version, see $ftp->pretty_dir below) and corresponding values are parsed with $Net::FTP::File::DirProcHash{proc}. This can all be customized as needed, see "HANDLING DIRECTORY LISTING FORMATS OF DIFFERENT FTP SERVERS" below for more info. 
 
    my $dir_info_hashref = $ftp->dir_hashref(@net_ftp_dir_args);
+
+Note that spaces in path names and links are not escaped. if that is necessary for your application then you must escape them.
+
+Also, if a path or link has more than one space in a row (IE "foo[space][space]bar") it will be converted into a single space. (IE "foo[space]bar"). I hope to adress this soon.
 
 =head2 $ftp->pretty_dir
 
