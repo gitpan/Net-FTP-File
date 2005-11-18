@@ -1,4 +1,4 @@
-Net/FTP/File version 0.04
+Net/FTP/File version 0.05
 =========================
 
 See Pod for documentation or 
@@ -15,7 +15,7 @@ To install this module type the following:
 
 or
 
-   perl -MCPAN -e 'install Net::FTp::File;'
+   perl -MCPAN -e 'install Net::FTP::File;'
 
 DEPENDENCIES
 

@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Net::FTP;
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 my $pretty = 1;
 our $_fatal = 0; # not my() because you can't localize lexical variables
@@ -40,13 +40,19 @@ our %DirProcHash = (
       my $line = shift;
       my $hash = shift;
       if($line !~ m/^total/) {
-         my @lin = split /\s+/, $line;
-         my $path = join ' ', @lin[8 .. $#lin];
+
+         my @parts = split /\s+/, $line;
+         my @lin = split /\s/, $line;
+         my $path_re = join '\s+', @parts[8 .. $#parts];
+         $path_re = '\s*' . $path_re . '\s*';
+         $path_re = qr($path_re);
+         my ($path) = $line =~ m{($path_re)};
+         $path = substr($path, 1); # remove first space that is there but is not part of the name
          my ($file, $link) = split / \-\> /, $path;
          $hash->{ $file }->{'Link To'} = defined $link && $link ? $link : undef;
          for(0..8) {
            my $label = exists $Net::FTP::File::DirProcHash{cols}->{$_} ? $Net::FTP::File::DirProcHash{cols}->{$_} : $_; 
-           $hash->{ $file }->{ $label } = $_ == 8 ? $file : $lin[$_];
+           $hash->{ $file }->{ $label } = $_ == 8 ? $file : $parts[$_];
          }
       }
    },
@@ -305,7 +311,7 @@ Each key is the file or path name as returned by $ftp->dir and the value is anot
 
 Note that spaces in path names and links are not escaped. if that is necessary for your application then you must escape them.
 
-Also, if a path or link has more than one space in a row (IE "foo[space][space]bar") it will be converted into a single space. (IE "foo[space]bar"). I hope to adress this soon.
+Multiple spaces and single or multiple spaces at the beginning or end are properly preserved.
 
 =head2 $ftp->pretty_dir
 
