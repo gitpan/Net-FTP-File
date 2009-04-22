@@ -4,185 +4,190 @@ use strict;
 use warnings;
 use Net::FTP;
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 my $pretty = 1;
-our $_fatal = 0; # not my() because you can't localize lexical variables
+our $_fatal = 0;    # not my() because you can't localize lexical variables
 
 my %cols = (
-   pretty => {
-      0 => 'Permissions',
-      1 => 'Number of Links',
-      2 => 'Owner',
-      3 => 'Group',
-      4 => 'Bytes',
-      5 => 'Last Modified Month',
-      6 => 'Last Modified Day',
-      7 => 'Last Modified Year/Time',
-      8 => 'Path'
-   },
-   utility => {
-      0 => 'perms',
-      1 => 'links',
-      2 => 'owner',
-      3 => 'group',
-      4 => 'bytes',
-      5 => 'month',
-      6 => 'day',
-      7 => 'yr_tm',
-      8 => 'path'
-   }
+    pretty => {
+        0 => 'Permissions',
+        1 => 'Number of Links',
+        2 => 'Owner',
+        3 => 'Group',
+        4 => 'Bytes',
+        5 => 'Last Modified Month',
+        6 => 'Last Modified Day',
+        7 => 'Last Modified Year/Time',
+        8 => 'Path'
+    },
+    utility => {
+        0 => 'perms',
+        1 => 'links',
+        2 => 'owner',
+        3 => 'group',
+        4 => 'bytes',
+        5 => 'month',
+        6 => 'day',
+        7 => 'yr_tm',
+        8 => 'path'
+    }
 );
 
 our %DirProcHash = (
-   cols => $cols{pretty},
-   proc => sub {
-      my $line = shift;
-      my $hash = shift;
-      if($line !~ m/^total/) {
+    cols => $cols{pretty},
+    proc => sub {
+        my $line = shift;
+        my $hash = shift;
+        if ( $line !~ m/^total/ ) {
 
-         my @parts = split /\s+/, $line;
-         my @lin = split /\s/, $line;
-         my $path_re = join '\s+', @parts[8 .. $#parts];
-         $path_re = '\s*' . $path_re . '\s*';
-         $path_re = qr($path_re);
-         my ($path) = $line =~ m{($path_re)};
-         $path = substr($path, 1); # remove first space that is there but is not part of the name
-         my ($file, $link) = split / \-\> /, $path;
-         $hash->{ $file }->{'Link To'} = defined $link && $link ? $link : undef;
-         for(0..8) {
-           my $label = exists $Net::FTP::File::DirProcHash{cols}->{$_} ? $Net::FTP::File::DirProcHash{cols}->{$_} : $_; 
-           $hash->{ $file }->{ $label } = $_ == 8 ? $file : $parts[$_];
-         }
-      }
-   },
+            my @parts = split /\s+/, $line;
+            my @lin   = split /\s/,  $line;
+            my $path_re = join '\s+', map { quotemeta } @parts[ 8 .. $#parts ];
+            $path_re = '\s*' . $path_re . '\s*';
+            $path_re = qr($path_re);
+            my ($path) = $line =~ m{($path_re)};
+            $path = substr( $path, 1 );    # remove first space that is there but is not part of the name
+            my ( $file, $link ) = split / \-\> /, $path;
+            $hash->{$file}->{'Link To'} = defined $link && $link ? $link : undef;
+
+            for ( 0 .. 8 ) {
+                my $label = exists $Net::FTP::File::DirProcHash{cols}->{$_} ? $Net::FTP::File::DirProcHash{cols}->{$_} : $_;
+                $hash->{$file}->{$label} = $_ == 8 ? $file : $parts[$_];
+            }
+        }
+    },
 
 );
 
 sub Net::FTP::pretty_dir {
-   shift;
-   my $newp = shift;
-   if(defined $newp) {
-      $pretty = $newp;
-      $DirProcHash{cols} = $cols{pretty} if $pretty;
-      $DirProcHash{cols} = $cols{utility} if !$pretty;
-   }   
-   return $pretty;
+    shift;
+    my $newp = shift;
+    if ( defined $newp ) {
+        $pretty = $newp;
+        $DirProcHash{cols} = $cols{pretty}  if $pretty;
+        $DirProcHash{cols} = $cols{utility} if !$pretty;
+    }
+    return $pretty;
 }
 
 my $setmsg = sub {
-   my $ftp = shift;
-   my $msg = shift() . "\n";
-   $msg .= 'net_cmd_resp: ' . scalar $ftp->message if $ftp->message; 
-   ${*$ftp}{'net_cmd_resp'} = [$msg];
-   $_fatal = 1;
+    my $ftp = shift;
+    my $msg = shift() . "\n";
+    $msg .= 'net_cmd_resp: ' . scalar $ftp->message if $ftp->message;
+    ${*$ftp}{'net_cmd_resp'} = [$msg];
+    $_fatal = 1;
 };
 
 sub Net::FTP::isfile {
-   my $ftp = shift;
-   return 1 if $ftp->exists(@_) && !$ftp->isdir(@_); 
-   0;
+    my $ftp = shift;
+    return 1 if $ftp->exists(@_) && !$ftp->isdir(@_);
+    0;
 }
 
 sub Net::FTP::isdir {
-   my $ftp = shift;
-   local $_fatal;
-   my $c = $ftp->pwd();
-   my $r = $ftp->cwd(@_);
-   my $d = $ftp->cwd($c); 
-   my $e = $ftp->pwd();
-   $setmsg->("Could not CWD into original directory $c") if $c ne $e || !$d;
-   return undef if $_fatal;
-   return $r ? 1 : 0;
+    my $ftp = shift;
+    local $_fatal;
+    my $c = $ftp->pwd();
+    my $r = $ftp->cwd(@_);
+    my $d = $ftp->cwd($c);
+    my $e = $ftp->pwd();
+    $setmsg->( $ftp, "Could not CWD into original directory $c" ) if $c ne $e || !$d;
+    return undef if $_fatal;
+    return $r ? 1 : 0;
 }
 
-sub Net::FTP::exists { 
-   my $ftp = shift;
-   if(defined $ftp->size(@_)) { return 1; }
-   elsif($ftp->isdir(@_)) { return 1; }
-   else { return 0; }
+sub Net::FTP::exists {
+    my $ftp = shift;
+    if    ( defined $ftp->size(@_) ) { return 1; }
+    elsif ( $ftp->isdir(@_) )        { return 1; }
+    else                             { return 0; }
 }
 
 sub Net::FTP::dir_hashref {
-   my $ftp = shift;
-   my %dir;
-   for my $ln ($ftp->dir(@_)) {
-      $Net::FTP::File::DirProcHash{proc}->($ln,\%dir)
-   }
-   return \%dir;
+    my $ftp = shift;
+    my %dir;
+    for my $ln ( $ftp->dir(@_) ) {
+        $Net::FTP::File::DirProcHash{proc}->( $ln, \%dir );
+    }
+    return \%dir;
 }
 
 sub Net::FTP::copy {
-   my $ftp = shift;
-   my($t,$f);
-   my $fd = $ftp->pwd;
-   my ($o,$n,$cd,$to) = @_;
-   if($ftp->isfile($o)) {
-      if(!defined $to && defined $cd && $cd =~ m/^\d+$/) { $to = $cd;$cd = ''; }
-      my $g = $ftp->retr($o);
-      while($g->read($f, 1024, $to)) { $t .= $f; } 
-      $g->close();
-      $ftp->cwd($cd) if $cd;
-      my $p = $ftp->stor($n); 
-      $p->write($t, length($t), $to); 
-      $p->close();
-      $ftp->cwd($fd) if $cd;
-      return 1 if $ftp->exists($n);
-      return 0;
-   } else { return undef; }
+    my $ftp = shift;
+    my ( $t, $f );
+    my $fd = $ftp->pwd;
+    my ( $o, $n, $cd, $to ) = @_;
+    if ( $ftp->isfile($o) ) {
+        if ( !defined $to && defined $cd && $cd =~ m/^\d+$/ ) { $to = $cd; $cd = ''; }
+        my $g = $ftp->retr($o);
+        while ( $g->read( $f, 1024, $to ) ) { $t .= $f; }
+        $g->close();
+        $ftp->cwd($cd) if $cd;
+        my $p = $ftp->stor($n);
+        $p->write( $t, length($t), $to );
+        $p->close();
+        $ftp->cwd($fd) if $cd;
+        return 1 if $ftp->exists($n);
+        return 0;
+    }
+    else { return undef; }
 }
 
 sub Net::FTP::move {
-   my $ftp = shift;
-   if($_[0] eq $_[1]) {
-       $setmsg->($ftp,"copy $_[0] to $_[1] failed: they are the same file");
-       return;
-   }
-   my $cp = $ftp->copy(@_);
-   local $_fatal = 0;
-   $setmsg->($ftp,"copy $_[0] to $_[1] failed: $_[0] does not exist") if !defined $cp;
-   $setmsg->($ftp,"copy $_[0] to $_[1] failed: $_[1] was not created") if !$cp;
-   $ftp->delete($_[0]) or $setmsg->($ftp,"Unable to delete original file $_[0] after copy");
-   return 0 if $_fatal;
-   1;
+    my $ftp = shift;
+    if ( $_[0] eq $_[1] ) {
+        $setmsg->( $ftp, "copy $_[0] to $_[1] failed: they are the same file" );
+        return;
+    }
+    my $cp = $ftp->copy(@_);
+    local $_fatal = 0;
+    $setmsg->( $ftp, "copy $_[0] to $_[1] failed: $_[0] does not exist" )  if !defined $cp;
+    $setmsg->( $ftp, "copy $_[0] to $_[1] failed: $_[1] was not created" ) if !$cp;
+    $ftp->delete( $_[0] ) or $setmsg->( $ftp, "Unable to delete original file $_[0] after copy" );
+    return 0 if $_fatal;
+    1;
 }
 
 sub Net::FTP::chmod {
-   my $ftp = shift;
-   if($ftp->supported('SITE CHMOD')) {
-      my $chmod = $ftp->site('CHMOD',@_);
-      return 1 if $chmod == 2;
-      return 0 if $chmod == 5;
-      return -1;
-   }
-   return undef;
+    my $ftp = shift;
+    if ( $ftp->supported('SITE CHMOD') ) {
+        my $chmod = $ftp->site( 'CHMOD', @_ );
+        return 1 if $chmod == 2;
+        return 0 if $chmod == 5;
+        return -1;
+    }
+    return undef;
 }
 
 sub Net::FTP::touch {
     my $ftp = shift;
     my $rfl = shift;
-    if($ftp->isdir($rfl)) {
-        if(shift()) {
+    if ( $ftp->isdir($rfl) ) {
+        if ( shift() ) {
             $ftp->empty($rfl) or return;
-        } else { return -1 }
-    } elsif($ftp->isfile($rfl) && $ftp->size($rfl) > 0) {
-        $ftp->copy($rfl, $rfl) or return; # becasue $ftp->append and $ftp->appe don't change $ftp->mdtm() if you append nothing, if you knwo of a better way please let me know, thx :)
-    } else {
+        }
+        else { return -1 }
+    }
+    elsif ( $ftp->isfile($rfl) && $ftp->size($rfl) > 0 ) {
+        $ftp->copy( $rfl, $rfl ) or return;    # becasue $ftp->append and $ftp->appe don't change $ftp->mdtm() if you append nothing, if you knwo of a better way please let me know, thx :)
+    }
+    else {
         $ftp->empty($rfl) or return;
     }
     return $ftp->mdtm($rfl);
 }
 
 sub Net::FTP::empty {
-   my $ftp = shift;
-   my $zb = '';
-   open ZBF, '>', \$zb or return;
-   $ftp->put(\*ZBF, shift()) or return;
-   close ZBF;
+    my $ftp = shift;
+    my $zb  = '';
+    open ZBF, '>', \$zb or return;
+    $ftp->put( \*ZBF, shift() ) or return;
+    close ZBF;
 }
 
 # not 'stat' since one day Net::FTP may want to support STAT and likely will call it stat()
-sub Net::FTP::fstat { die 'fstat() in not yet implemented' } 
+sub Net::FTP::fstat { die 'fstat() in not yet implemented' }
 
 1;
 
